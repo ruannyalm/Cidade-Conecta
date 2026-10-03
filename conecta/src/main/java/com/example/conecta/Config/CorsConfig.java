@@ -16,7 +16,7 @@ public class CorsConfig {
 
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOriginPatterns(List.of(
+        configuration.setAllowedOrigins(List.of(
                 "https://earnest-purpose-production.up.railway.app"
         ));
 
@@ -30,11 +30,7 @@ public class CorsConfig {
         ));
 
         configuration.setAllowedHeaders(List.of("*"));
-
-        configuration.setExposedHeaders(List.of("*"));
-
         configuration.setAllowCredentials(true);
-
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source =
