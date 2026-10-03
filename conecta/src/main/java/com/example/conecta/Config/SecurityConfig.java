@@ -15,28 +15,57 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
-        public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService,
-            TokenRevogacaoService tokenRevogacaoService) throws Exception {
-        return http
-                .csrf(AbstractHttpConfigurer::disable)
-                .cors(cors -> {})
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(exceptions -> exceptions
-                    .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-                .authorizeHttpRequests(authorize -> authorize
-                    .requestMatchers("/auth/cadastro", "/auth/login").permitAll()
+public SecurityFilterChain securityFilterChain(
+        HttpSecurity http,
+        JwtService jwtService,
+        TokenRevogacaoService tokenRevogacaoService,
+        CorsConfigurationSource corsConfigurationSource) throws Exception {
+
+    return http
+            .csrf(AbstractHttpConfigurer::disable)
+
+            .cors(cors -> cors.configurationSource(corsConfigurationSource))
+
+            .sessionManagement(session ->
+                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+            .exceptionHandling(exceptions ->
+                    exceptions.authenticationEntryPoint(
+                            new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+
+            .authorizeHttpRequests(authorize -> authorize
+                    .requestMatchers(
+                            "/auth/cadastro",
+                            "/auth/login"
+                    ).permitAll()
+
+                    .requestMatchers(
+                            org.springframework.http.HttpMethod.OPTIONS,
+                            "/**"
+                    ).permitAll()
+
                     .requestMatchers("/auth/logout").authenticated()
-                        .anyRequest().authenticated())
-                .addFilterBefore(new JwtAuthenticationFilter(jwtService, tokenRevogacaoService),
-                    UsernamePasswordAuthenticationFilter.class)
-                .build();
-    }
+
+                    .anyRequest().authenticated()
+            )
+
+            .addFilterBefore(
+                    new JwtAuthenticationFilter(
+                            jwtService,
+                            tokenRevogacaoService
+                    ),
+                    UsernamePasswordAuthenticationFilter.class
+            )
+
+            .build();
+}
 
     @Bean
     public PasswordEncoder passwordEncoder() {
