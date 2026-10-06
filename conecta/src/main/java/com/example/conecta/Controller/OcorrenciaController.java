@@ -1,7 +1,10 @@
 package com.example.conecta.Controller;
 
+import com.example.conecta.Dto.AnaliseUrgenciaResponse;
+import com.example.conecta.Dto.CriarComentarioRequest;
 import com.example.conecta.Dto.CriarOcorrenciaRequest;
 import com.example.conecta.Dto.OcorrenciaResponse;
+import com.example.conecta.Dto.RespostaOcorrenciaResponse;
 import com.example.conecta.Service.OcorrenciaService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.io.Resource;
@@ -11,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -89,6 +93,20 @@ public class OcorrenciaController {
     public ResponseEntity<Void> deixarDeAcompanhar(Authentication authentication, @PathVariable Long id) {
         ocorrenciaService.deixarDeAcompanhar(authentication.getName(), id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/comentarios")
+    public ResponseEntity<RespostaOcorrenciaResponse> adicionarComentario(
+            Authentication authentication,
+            @PathVariable Long id,
+            @RequestBody CriarComentarioRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ocorrenciaService.adicionarComentario(authentication.getName(), id, request.mensagem()));
+    }
+
+    @PostMapping("/{id}/analisar-urgencia")
+    public AnaliseUrgenciaResponse analisarUrgencia(Authentication authentication, @PathVariable Long id) {
+        return ocorrenciaService.analisarUrgencia(authentication.getName(), id);
     }
 
     @GetMapping("/{id}/midias/{midiaId}")

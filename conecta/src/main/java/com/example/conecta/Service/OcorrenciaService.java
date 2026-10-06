@@ -210,16 +210,40 @@ public class OcorrenciaService {
 
     @Transactional
     public AnaliseUrgenciaResponse analisarUrgencia(String email, Long ocorrenciaId) {
-        UsuarioModel prefeitura = usuarioPorEmail(email);
-        exigirPrefeitura(prefeitura);
+        UsuarioModel usuario = usuarioPorEmail(email);
         OcorrenciaModel ocorrencia = ocorrenciaPorId(ocorrenciaId);
         long apoios = apoioRepository.countByOcorrenciaId(ocorrenciaId);
+        List<String> comentarios = respostaRepository.findByOcorrenciaIdOrderByCriadaEmAsc(ocorrenciaId)
+                .stream()
+                .map(r -> r.getAutor().getNome() + ": " + r.getMensagem())
+                .toList();
+
         PrioridadeOcorrenciaService.Resultado resultado = prioridadeService.analisar(
-                ocorrencia.getCategoria(), apoios, ocorrencia.getTitulo(), ocorrencia.getDescricao());
+                ocorrencia.getCategoria(), apoios, ocorrencia.getTitulo(), ocorrencia.getDescricao(), comentarios);
         ocorrencia.setUrgencia(resultado.urgencia());
         ocorrenciaRepository.save(ocorrencia);
-        return new AnaliseUrgenciaResponse(ocorrenciaId, resultado.urgencia(), resultado.pontuacao(),
-                resultado.fatores(), resultado.recomendacao(), "triagem-explicavel-v1");
+        return new AnaliseUrgenciaResponse(
+                ocorrenciaId,
+                resultado.urgencia(),
+                resultado.pontuacao(),
+                resultado.fatores(),
+                resultado.recomendacao(),
+                resultado.comoResolver(),
+                "triagem-explicavel-v2");
+    }
+
+    @Transactional
+    public RespostaOcorrenciaResponse adicionarComentario(String email, Long ocorrenciaId, String mensagem) {
+        UsuarioModel usuario = usuarioPorEmail(email);
+        if (isBlank(mensagem) || mensagem.trim().length() > 5000) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe um comentário válido de até 5.000 caracteres.");
+        }
+        OcorrenciaModel ocorrencia = ocorrenciaPorId(ocorrenciaId);
+        RespostaOcorrenciaModel resposta = respostaRepository.save(
+                new RespostaOcorrenciaModel(ocorrencia, usuario, mensagem.trim())
+        );
+        notificacaoService.notificarInteressados(ocorrencia, usuario.getNome() + " comentou na ocorrência #" + ocorrenciaId + ".");
+        return new RespostaOcorrenciaResponse(resposta.getId(), usuario.getNome(), resposta.getMensagem(), resposta.getCriadaEm());
     }
 
     @Transactional(readOnly = true)

@@ -48,4 +48,16 @@ class PrioridadeOcorrenciaServiceTest {
         assertEquals(NivelUrgencia.BAIXA, resultado.urgencia());
         assertEquals("Manter na fila regular de atendimento.", resultado.recomendacao());
     }
+
+    @Test
+    void analyzesCommentsAndGeneratesResolutionPlan() {
+        PrioridadeOcorrenciaService.Resultado resultado = service.analisar(
+                CategoriaOcorrencia.BURACO_VIA, 10, "Buraco na via", "Buraco na rua",
+                java.util.List.of("Maria Clara: Passei ontem e quase caí de moto!")
+        );
+
+        assertTrue(resultado.fatores().stream().anyMatch(f -> f.contains("comentário")));
+        assertTrue(resultado.comoResolver().contains("recapeamento"));
+        assertTrue(resultado.comoResolver().contains("motociclistas"));
+    }
 }

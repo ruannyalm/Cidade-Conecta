@@ -15,8 +15,21 @@ export type UrgencyAnalysis = {
   pontuacaoRisco: number;
   fatores: string[];
   recomendacao: string;
+  comoResolver?: string;
   metodo: string;
 };
+
+export function addOccurrenceComment(id: number, mensagem: string) {
+  return request<{ id: number; autor: string; mensagem: string; criadaEm: string }>(
+    `/api/ocorrencias/${id}/comentarios`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mensagem }),
+    },
+  );
+}
+
 
 export type UserSession = {
   token: string;

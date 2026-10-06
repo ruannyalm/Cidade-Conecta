@@ -17,4 +17,6 @@ public interface OcorrenciaRepository extends JpaRepository<OcorrenciaModel, Lon
     List<OcorrenciaModel> findByAutorIdOrderByCriadaEmDesc(Long autorId);
 
     boolean existsByTituloAndEndereco(String titulo, String endereco);
+
+    java.util.Optional<OcorrenciaModel> findByTituloAndEndereco(String titulo, String endereco);
 }

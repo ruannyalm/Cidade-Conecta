@@ -10,5 +10,6 @@ public record AnaliseUrgenciaResponse(
         int pontuacaoRisco,
         List<String> fatores,
         String recomendacao,
+        String comoResolver,
         String metodo) {
 }

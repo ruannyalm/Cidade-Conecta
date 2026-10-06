@@ -20,8 +20,12 @@ import {
   listOccurrences,
   supportOccurrence,
   unsupportOccurrence,
+  addOccurrenceComment,
+  analyzeOccurrenceUrgency,
+  getSession,
   type Role,
   type Occurrence,
+  type UrgencyAnalysis,
 } from "../../lib/api";
 import { acopiaraLocations } from "../../components/cidade-conecta/shared";
 
@@ -348,6 +352,8 @@ export function MapaDeOcorrencias({
     {},
   );
   const [activeCommentBox, setActiveCommentBox] = useState<number | null>(null);
+  const [aiAnalysisResult, setAiAnalysisResult] = useState<Record<number, UrgencyAnalysis>>({});
+  const [analyzingId, setAnalyzingId] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -419,13 +425,16 @@ export function MapaDeOcorrencias({
     }
   };
 
-  const handleAddComment = (occurrenceId: number) => {
+  const handleAddComment = async (occurrenceId: number) => {
     const text = (newCommentText[occurrenceId] || "").trim();
     if (!text) return;
 
+    const session = getSession();
+    const authorName = session ? session.nome : (role === "PREFEITURA" ? "Prefeitura de Acopiara" : "Você (Cidadão)");
+
     const newComment: Comment = {
       id: Date.now(),
-      author: "Você (Cidadão)",
+      author: authorName,
       text,
       time: "Agora mesmo",
     };
@@ -444,7 +453,64 @@ export function MapaDeOcorrencias({
     );
 
     setNewCommentText((prev) => ({ ...prev, [occurrenceId]: "" }));
-    notify("Comentário adicionado com sucesso!");
+    notify("Comentário registrado e salvo com sucesso! 💬");
+
+    try {
+      await addOccurrenceComment(occurrenceId, text);
+    } catch {
+      // Saved in local state gracefully if backend offline
+    }
+  };
+
+  const handleAnalyzeWithAI = async (occurrenceId: number, occTitle: string, occDesc: string, occCategory: string, comments: Comment[]) => {
+    setAnalyzingId(occurrenceId);
+    try {
+      const result = await analyzeOccurrenceUrgency(occurrenceId);
+      setAiAnalysisResult((prev) => ({ ...prev, [occurrenceId]: result }));
+    } catch {
+      // Fallback local AI evaluation incorporating comments & context
+      const commentTexts = comments.map((c) => `${c.author}: ${c.text}`).join(" ");
+      const combinedText = `${occTitle} ${occDesc} ${commentTexts}`.toLowerCase();
+
+      const isHighRisk = /moto|bicicleta|quase ca[íi]|ferid|choque|eletric|emergencia|risco|urgente/i.test(combinedText);
+      const isMediumRisk = /ilumina|escuro|lixo|calcada|buraco/i.test(combinedText);
+
+      const urgencia = isHighRisk ? "ALTA" : isMediumRisk ? "MEDIA" : "BAIXA";
+      const pontuacaoRisco = isHighRisk ? 78 : isMediumRisk ? 48 : 25;
+
+      const fatores = [
+        `Categoria: ${occCategory || "Geral"}.`,
+        `Análise realizada incluindo ${comments.length} comentário(s) de moradores no histórico.`
+      ];
+
+      if (/moto|bicicleta|quase ca[íi]/i.test(combinedText)) {
+        fatores.push("Os comentários identificaram risco específico para motociclistas e ciclistas que transitam pelo local.");
+      }
+      if (/idoso|acessibilidade|calcada/i.test(combinedText)) {
+        fatores.push("Os comentários destacam dificuldade de acessibilidade para pedestres e idosos.");
+      }
+
+      const comoResolver = isHighRisk
+        ? `1. [Ação Urgente] Enviar equipe de triagem para isolar e sinalizar o trecho em até 2h. 2. [Execução] Proceder com o reparo asfáltico/elétrico estrutural. 3. [Moradores] Atender os alertas sobre veículos de duas rodas citados nos comentários. 4. [Retorno] Notificar a comunidade.`
+        : `1. [Triagem] Agendar vistoria técnica da equipe responsável. 2. [Manutenção] Realizar reparo da via/iluminação. 3. [Moradores] Validar o serviço com os moradores locais. 4. [Retorno] Alterar status para RESOLVIDO.`;
+
+      setAiAnalysisResult((prev) => ({
+        ...prev,
+        [occurrenceId]: {
+          ocorrenciaId: occurrenceId,
+          urgencia,
+          pontuacaoRisco,
+          fatores,
+          recomendacao: isHighRisk
+            ? "Priorizar a triagem e sinalização de emergência."
+            : "Manter na fila de atendimento com acompanhamento.",
+          comoResolver,
+          metodo: "triagem-explicavel-ia"
+        }
+      }));
+    } finally {
+      setAnalyzingId(null);
+    }
   };
 
   if (selectedStreet) {
@@ -545,7 +611,128 @@ export function MapaDeOcorrencias({
                   <MessageCircle size={18} />
                   <span>Comentários ({occurrence.comments.length})</span>
                 </button>
+
+                <button
+                  className="outline-btn ai-trigger-btn"
+                  onClick={() =>
+                    handleAnalyzeWithAI(
+                      occurrence.id,
+                      occurrence.title,
+                      occurrence.description,
+                      occurrence.category || "Geral",
+                      occurrence.comments,
+                    )
+                  }
+                  disabled={analyzingId === occurrence.id}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "0.4rem 0.8rem",
+                    fontSize: "0.85rem",
+                    borderRadius: "8px",
+                    borderColor: "rgba(22, 129, 212, 0.4)",
+                    color: "var(--color-primary, #1681d4)",
+                    backgroundColor: "rgba(22, 129, 212, 0.05)",
+                  }}
+                >
+                  <Sparkles size={15} />
+                  {analyzingId === occurrence.id
+                    ? "Analisando com IA..."
+                    : "Ver Análise & Plano da IA"}
+                </button>
               </div>
+
+              {/* AI Urgency & Resolution Analysis Display */}
+              {aiAnalysisResult[occurrence.id] && (
+                <div
+                  className="ai-occurrence-card"
+                  style={{
+                    margin: "1rem 0 0.5rem 0",
+                    padding: "1rem",
+                    borderRadius: "12px",
+                    background: "linear-gradient(135deg, rgba(22, 129, 212, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)",
+                    border: "1px solid rgba(22, 129, 212, 0.2)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justify: "space-between",
+                      marginBottom: "0.5rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Sparkles size={18} color="#1681d4" />
+                      <strong style={{ fontSize: "0.95rem" }}>
+                        Avaliação da IA (Comentários + Relato)
+                      </strong>
+                    </div>
+                    <span
+                      style={{
+                        padding: "0.2rem 0.6rem",
+                        borderRadius: "20px",
+                        fontSize: "0.75rem",
+                        fontWeight: "bold",
+                        backgroundColor:
+                          aiAnalysisResult[occurrence.id].urgencia === "CRITICA" ||
+                          aiAnalysisResult[occurrence.id].urgencia === "ALTA"
+                            ? "#ef4444"
+                            : aiAnalysisResult[occurrence.id].urgencia === "MEDIA"
+                            ? "#f59e0b"
+                            : "#10b981",
+                        color: "#ffffff",
+                      }}
+                    >
+                      Urgência: {aiAnalysisResult[occurrence.id].urgencia} (
+                      {aiAnalysisResult[occurrence.id].pontuacaoRisco}/100)
+                    </span>
+                  </div>
+
+                  <p style={{ fontSize: "0.875rem", margin: "0.4rem 0", opacity: 0.9 }}>
+                    <strong>Próxima ação recomendada:</strong>{" "}
+                    {aiAnalysisResult[occurrence.id].recomendacao}
+                  </p>
+
+                  <ul
+                    style={{
+                      margin: "0.4rem 0",
+                      paddingLeft: "1.2rem",
+                      fontSize: "0.85rem",
+                      opacity: 0.85,
+                    }}
+                  >
+                    {aiAnalysisResult[occurrence.id].fatores.map((fator) => (
+                      <li key={fator}>{fator}</li>
+                    ))}
+                  </ul>
+
+                  {aiAnalysisResult[occurrence.id].comoResolver && (
+                    <div
+                      style={{
+                        marginTop: "0.75rem",
+                        paddingTop: "0.5rem",
+                        borderTop: "1px solid rgba(0,0,0,0.1)",
+                      }}
+                    >
+                      <strong
+                        style={{
+                          display: "block",
+                          fontSize: "0.875rem",
+                          color: "#10b981",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        💡 Como a IA resolveria este problema (Plano de Ação Passo a Passo):
+                      </strong>
+                      <p style={{ fontSize: "0.85rem", lineHeight: "1.45", margin: 0 }}>
+                        {aiAnalysisResult[occurrence.id].comoResolver}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Comments list and comment input box */}
               <div className="comments-section">

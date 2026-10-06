@@ -407,7 +407,7 @@ export function PrefeituraIa() {
                 <small>/100</small>
               </b>
             </div>
-            <h3>Fatores considerados</h3>
+            <h3>Fatores considerados (Relato + Comentários)</h3>
             <ul className="urgency-factors">
               {analysis.fatores.map((factor) => (
                 <li key={factor}>{factor}</li>
@@ -416,9 +416,18 @@ export function PrefeituraIa() {
             <p className="urgency-recommendation">
               <strong>Próxima ação sugerida:</strong> {analysis.recomendacao}
             </p>
+            {analysis.comoResolver && (
+              <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px dashed rgba(255,255,255,0.15)" }}>
+                <strong style={{ display: "block", marginBottom: "0.5rem", color: "var(--accent-green, #10b981)" }}>
+                  💡 Como a IA resolveria esta ocorrência (Plano de Ação):
+                </strong>
+                <p style={{ fontSize: "0.925rem", lineHeight: "1.5", opacity: 0.9 }}>
+                  {analysis.comoResolver}
+                </p>
+              </div>
+            )}
             <span>
-              Triagem automática demonstrativa. A decisão final é da equipe
-              responsável.
+              Triagem automática com análise dos comentários. A decisão final é da equipe responsável.
             </span>
           </div>
         )}
