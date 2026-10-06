@@ -42,6 +42,12 @@ export type Occurrence = {
   acompanhada: boolean;
   enviadaPorAudio: boolean;
   criadaEm: string;
+  respostas?: {
+    id: number;
+    autor: string;
+    mensagem: string;
+    criadaEm: string;
+  }[];
 };
 
 export type CreateOccurrenceInput = {
@@ -160,3 +166,16 @@ export function updateOccurrenceStatus(
     body: JSON.stringify({ status, resposta }),
   });
 }
+
+export function supportOccurrence(id: number) {
+  return request<void>(`/api/ocorrencias/${id}/apoio`, {
+    method: "POST",
+  });
+}
+
+export function unsupportOccurrence(id: number) {
+  return request<void>(`/api/ocorrencias/${id}/apoio`, {
+    method: "DELETE",
+  });
+}
+

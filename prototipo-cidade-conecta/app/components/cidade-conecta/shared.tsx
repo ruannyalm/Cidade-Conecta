@@ -64,40 +64,12 @@ export const problems = [
   },
 ];
 
-export const regions = [
-  {
-    name: "Norte",
-    capitals: ["Manaus", "Belém", "Macapá", "Palmas"],
-    interior: ["Parintins", "Santarém", "Marabá"],
-  },
-  {
-    name: "Nordeste",
-    capitals: [
-      "Recife",
-      "Salvador",
-      "Fortaleza",
-      "São Luís",
-      "Natal",
-      "João Pessoa",
-      "Maceió",
-      "Aracaju",
-      "Teresina",
-    ],
-    interior: ["Caruaru", "Campina Grande", "Feira de Santana"],
-  },
-  {
-    name: "Centro-Oeste",
-    capitals: ["Brasília", "Goiânia", "Cuiabá", "Campo Grande"],
-    interior: ["Anápolis", "Rondonópolis", "Dourados"],
-  },
-  {
-    name: "Sudeste",
-    capitals: ["São Paulo", "Rio de Janeiro", "Belo Horizonte", "Vitória"],
-    interior: ["Campinas", "Santos", "Uberlândia", "Niterói"],
-  },
-  {
-    name: "Sul",
-    capitals: ["Curitiba", "Florianópolis", "Porto Alegre"],
-    interior: ["Londrina", "Joinville", "Caxias do Sul", "Maringá"],
-  },
-];
+export const acopiaraLocations = [
+  "Av. Cazuzinha Marques",
+  "R. Manuel José",
+  "R. Emídio Alves de Almeida",
+  "R. Maria Nilce Rodrigues Marquês",
+  "R. Dr. Tribúrcio Soares",
+  "R. Paulino Felix",
+  "Ponto de referência: Igreja da Matriz",
+] as const;

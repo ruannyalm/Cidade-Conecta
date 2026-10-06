@@ -3,21 +3,36 @@
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
-  Check,
   Heart,
   LocateFixed,
   Map,
   MapPin,
   MessageCircle,
-  Plus,
   Search,
   Send,
+  Sparkles,
   Users,
-  X,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
 } from "lucide-react";
-import { listOccurrences, type Role, type Occurrence } from "../../lib/api";
+import {
+  listOccurrences,
+  supportOccurrence,
+  unsupportOccurrence,
+  type Role,
+  type Occurrence,
+} from "../../lib/api";
+import { acopiaraLocations } from "../../components/cidade-conecta/shared";
 
-type StreetOccurrence = {
+export type Comment = {
+  id: number;
+  author: string;
+  text: string;
+  time: string;
+};
+
+export type StreetOccurrence = {
   id: number;
   author: string;
   initials: string;
@@ -25,378 +40,622 @@ type StreetOccurrence = {
   title: string;
   description: string;
   supports: number;
+  isSupported?: boolean;
   status: "Em análise" | "Em atendimento" | "Resolvida";
+  category?: string;
+  comments: Comment[];
 };
-type Street = {
+
+export type Street = {
   name: string;
   neighborhood: string;
-  position: string;
+  position: { top: string; left: string };
   total: number;
-  tone: "red" | "yellow" | "green";
+  tone: "blue" | "orange" | "green";
   occurrences: StreetOccurrence[];
 };
 
-const initialStreets: Street[] = [
-  {
-    name: "Rua das Palmeiras",
-    neighborhood: "Jardim América",
-    position: "north",
-    total: 8,
-    tone: "red",
-    occurrences: [
-      {
-        id: 1,
-        author: "Lucas Mendes",
-        initials: "LM",
-        time: "há 18 min",
-        title: "Buraco ocupando metade da faixa",
-        description:
-          "O buraco aumentou depois da última chuva e está difícil passar de bicicleta ou de carro.",
-        supports: 24,
-        status: "Em atendimento",
-      },
-      {
-        id: 2,
-        author: "Beatriz Lima",
-        initials: "BL",
-        time: "há 2 h",
-        title: "Iluminação apagada perto da praça",
-        description:
-          "Três postes estão sem luz desde ontem. A rua fica muito escura à noite.",
-        supports: 11,
-        status: "Em análise",
-      },
-    ],
-  },
-  {
-    name: "Avenida Central",
-    neighborhood: "Centro",
-    position: "midwest",
-    total: 14,
-    tone: "yellow",
-    occurrences: [
-      {
-        id: 3,
-        author: "Rafael Souza",
-        initials: "RS",
-        time: "há 42 min",
-        title: "Semáforo desregulado",
-        description:
-          "O sinal abre por poucos segundos e causa uma fila grande nos horários de pico.",
-        supports: 31,
-        status: "Em atendimento",
-      },
-    ],
-  },
-  {
-    name: "Rua do Bosque",
-    neighborhood: "Vila Nova",
-    position: "northeast",
-    total: 5,
-    tone: "green",
-    occurrences: [
-      {
-        id: 4,
-        author: "Carolina Alves",
-        initials: "CA",
-        time: "ontem",
-        title: "Calçada com descarte irregular",
-        description:
-          "Há sacos e móveis bloqueando a passagem de pedestres perto do ponto de ônibus.",
-        supports: 8,
-        status: "Resolvida",
-      },
-    ],
-  },
-  {
-    name: "Rua do Mercado",
-    neighborhood: "Moema",
-    position: "southeast",
-    total: 9,
-    tone: "red",
-    occurrences: [
-      {
-        id: 5,
-        author: "João Pedro",
-        initials: "JP",
-        time: "há 3 h",
-        title: "Vazamento de água na calçada",
-        description:
-          "A água está escorrendo pela calçada e deixando o piso escorregadio.",
-        supports: 17,
-        status: "Em análise",
-      },
-    ],
-  },
-  {
-    name: "Avenida das Flores",
-    neighborhood: "Ipiranga",
-    position: "south",
-    total: 3,
-    tone: "green",
-    occurrences: [
-      {
-        id: 6,
-        author: "Marina Costa",
-        initials: "MC",
-        time: "12 jun",
-        title: "Ponto de ônibus sem cobertura",
-        description:
-          "O ponto atende muitos moradores, mas não tem cobertura para dias de chuva.",
-        supports: 6,
-        status: "Resolvida",
-      },
-    ],
-  },
+const defaultPositions = [
+  { top: "12%", left: "15%" },
+  { top: "18%", left: "55%" },
+  { top: "40%", left: "20%" },
+  { top: "45%", left: "62%" },
+  { top: "68%", left: "18%" },
+  { top: "72%", left: "58%" },
+  { top: "35%", left: "40%" },
+  { top: "82%", left: "38%" },
+  { top: "25%", left: "35%" },
+  { top: "60%", left: "42%" },
 ];
 
-function toStreetData(occurrences: Occurrence[]): Street[] {
-  const positions = ["north", "midwest", "northeast", "southeast", "south"];
-  const grouped = new globalThis.Map<string, Street>();
-  occurrences.forEach((occurrence, index) => {
-    const name =
-      occurrence.endereco || occurrence.bairro || "Local não informado";
-    const existing = grouped.get(name);
-    const status =
-      occurrence.status === "RESOLVIDO"
-        ? "Resolvida"
-        : occurrence.status === "EM_PROCESSO"
-          ? "Em atendimento"
-          : "Em análise";
-    const tone =
-      occurrence.urgencia === "ALTA" || occurrence.urgencia === "CRITICA"
-        ? "red"
-        : occurrence.urgencia === "MEDIA"
-          ? "yellow"
-          : "green";
-    const item: StreetOccurrence = {
-      id: occurrence.id,
-      author: occurrence.anonima
-        ? "Relato anônimo"
-        : occurrence.autor || "Morador",
-      initials: occurrence.anonima
-        ? "AN"
-        : (occurrence.autor || "MO").slice(0, 2).toUpperCase(),
-      time: new Date(occurrence.criadaEm).toLocaleDateString("pt-BR"),
-      title: occurrence.titulo,
-      description: occurrence.descricao,
-      supports: occurrence.apoios,
-      status,
-    };
-    if (existing) {
-      existing.total += 1;
-      existing.occurrences.push(item);
-    } else {
-      grouped.set(name, {
-        name,
-        neighborhood: occurrence.bairro || "Bairro não informado",
-        position: positions[index % positions.length],
-        total: 1,
-        tone,
-        occurrences: [item],
-      });
+const defaultDemoOccurrences: Record<string, StreetOccurrence[]> = {
+  "Av. Cazuzinha Marques": [
+    {
+      id: 901,
+      author: "João Silva (Teste)",
+      initials: "JS",
+      time: "Hoje às 09:15",
+      title: "Buraco em trecho movimentado próximo à praça",
+      description:
+        "Há um buraco considerável na pista que tem provocado desvios bruscos de motoristas e motociclistas. Risco de acidente no período noturno.",
+      supports: 18,
+      isSupported: false,
+      status: "Em análise",
+      category: "Infraestrutura",
+      comments: [
+        {
+          id: 1,
+          author: "Maria Clara",
+          text: "Passei por lá ontem à noite e quase caí de moto! Precisa de reparo urgente.",
+          time: "Há 1 hora",
+        },
+        {
+          id: 2,
+          author: "Carlos Eduardo",
+          text: "Apoiei! Tomara que a prefeitura resolva logo.",
+          time: "Há 30 min",
+        },
+      ],
+    },
+    {
+      id: 902,
+      author: "Ana Souza (Teste)",
+      initials: "AS",
+      time: "Ontem às 16:40",
+      title: "Iluminação apagada no trecho comercial",
+      description:
+        "Três postes sequenciais estão apagados deixando o início da av. Cazuzinha Marques escuro durante a noite.",
+      supports: 12,
+      isSupported: false,
+      status: "Em atendimento",
+      category: "Iluminação Pública",
+      comments: [],
+    },
+  ],
+  "R. Manuel José": [
+    {
+      id: 903,
+      author: "Carlos Oliveira (Teste)",
+      initials: "CO",
+      time: "Há 2 dias",
+      title: "Poste de luz piscando e fiação caíba",
+      description:
+        "Fiação telefônica caída na altura do número 240. Necessita recolhimento ou manutenção dos cabos pendurados.",
+      supports: 24,
+      isSupported: true,
+      status: "Em atendimento",
+      category: "Segurança / Iluminação",
+      comments: [
+        {
+          id: 1,
+          author: "Equipe Conecta",
+          text: "Ocorrência encaminhada para a secretaria de obras municipal.",
+          time: "Há 1 dia",
+        },
+      ],
+    },
+  ],
+  "R. Emídio Alves de Almeida": [
+    {
+      id: 904,
+      author: "Fernanda Lima (Teste)",
+      initials: "FL",
+      time: "Há 1 dia",
+      title: "Descarte irregular de entulho e lixo na calçada",
+      description:
+        "Sacolas de lixo e restos de construção estão bloqueando a calçada e acumulando insetos.",
+      supports: 15,
+      isSupported: false,
+      status: "Em análise",
+      category: "Limpeza Pública",
+      comments: [],
+    },
+  ],
+  "R. Maria Nilce Rodrigues Marquês": [
+    {
+      id: 905,
+      author: "Roberto Alves (Teste)",
+      initials: "RA",
+      time: "Há 3 dias",
+      title: "Asfalto cedeu após forte chuva",
+      description:
+        "Surgiu um afundamento no asfalto próximo à esquina. Carros de pequeno porte estão raspando o fundo.",
+      supports: 32,
+      isSupported: false,
+      status: "Em análise",
+      category: "Vias Públicas",
+      comments: [
+        {
+          id: 1,
+          author: "Luciana Rocha",
+          text: "Total apoio! É a rua principal de acesso ao bairro.",
+          time: "Há 2 dias",
+        },
+      ],
+    },
+  ],
+  "R. Dr. Tribúrcio Soares": [
+    {
+      id: 906,
+      author: "Camila Rocha (Teste)",
+      initials: "CR",
+      time: "Há 4 dias",
+      title: "Galho de árvore caindo sobre sinalização",
+      description:
+        "Árvore com galho quebrado necessitando poda urgente para não cobrir a placa de sinalização de trânsito.",
+      supports: 9,
+      isSupported: false,
+      status: "Resolvida",
+      category: "Meio Ambiente",
+      comments: [
+        {
+          id: 1,
+          author: "Prefeitura de Acopiara",
+          text: "Poda realizada com sucesso pela equipe de meio ambiente.",
+          time: "Há 1 dia",
+        },
+      ],
+    },
+  ],
+  "R. Paulino Felix": [
+    {
+      id: 907,
+      author: "Marcos Vinícius (Teste)",
+      initials: "MV",
+      time: "Há 5 dias",
+      title: "Lâmpadas queimadas substituídas",
+      description:
+        "Relato sobre lâmpadas queimadas na rua. Serviço concluído e iluminação restabelecida.",
+      supports: 29,
+      isSupported: false,
+      status: "Resolvida",
+      category: "Iluminação Pública",
+      comments: [],
+    },
+  ],
+  "Ponto de referência: Igreja da Matriz": [
+    {
+      id: 908,
+      author: "Beatriz Santos (Teste)",
+      initials: "BS",
+      time: "Há 2 dias",
+      title: "Piso tátil solto e calçada danificada perto da matriz",
+      description:
+        "O piso na praça principal em frente à Matriz está com pedras soltas, dificultando a acessibilidade de idosos.",
+      supports: 41,
+      isSupported: false,
+      status: "Em atendimento",
+      category: "Acessibilidade",
+      comments: [
+        {
+          id: 1,
+          author: "Padre Antônio",
+          text: "Apoio este pedido! É essencial garantir acessibilidade aos fiéis e visitantes.",
+          time: "Há 1 dia",
+        },
+      ],
+    },
+  ],
+};
+
+function buildStreetList(dbOccurrences: Occurrence[]): Street[] {
+  // Extract all unique street names from acopiaraLocations + DB occurrences
+  const streetNameSet = new Set<string>();
+  acopiaraLocations.forEach((name) => streetNameSet.add(name.trim()));
+
+  dbOccurrences.forEach((occ) => {
+    if (occ.endereco && occ.endereco.trim().length > 0) {
+      streetNameSet.add(occ.endereco.trim());
     }
   });
-  return [...grouped.values()];
+
+  const streetList: Street[] = [];
+
+  let posIdx = 0;
+  streetNameSet.forEach((streetName) => {
+    const defaultOccs = defaultDemoOccurrences[streetName] || [];
+    const occurrencesForStreet: StreetOccurrence[] = [...defaultOccs];
+
+    // Filter occurrences from DB matching this street
+    dbOccurrences.forEach((occ) => {
+      const match =
+        occ.endereco?.trim().toLowerCase() === streetName.toLowerCase();
+      if (match) {
+        // Prevent duplicate IDs if demo ID conflicts
+        const exists = occurrencesForStreet.some((item) => item.id === occ.id);
+        if (!exists) {
+          occurrencesForStreet.unshift({
+            id: occ.id,
+            author: occ.anonima
+              ? "Cidadão Anônimo"
+              : occ.autor || "Morador de Acopiara",
+            initials: occ.anonima
+              ? "AN"
+              : (occ.autor || "MO").slice(0, 2).toUpperCase(),
+            time: new Date(occ.criadaEm).toLocaleDateString("pt-BR", {
+              day: "2-digit",
+              month: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            title: occ.titulo,
+            description: occ.descricao,
+            supports: occ.apoios || 0,
+            isSupported: false,
+            status:
+              occ.status === "RESOLVIDO"
+                ? "Resolvida"
+                : occ.status === "EM_PROCESSO" || occ.status === "AGENDADO"
+                  ? "Em atendimento"
+                  : "Em análise",
+            category: occ.categoria || "Geral",
+            comments: (occ.respostas || []).map((resp) => ({
+              id: resp.id,
+              author: resp.autor,
+              text: resp.mensagem,
+              time: new Date(resp.criadaEm).toLocaleDateString("pt-BR"),
+            })),
+          });
+        }
+      }
+    });
+
+    const position = defaultPositions[posIdx % defaultPositions.length];
+    posIdx++;
+
+    const hasInAnalysis = occurrencesForStreet.some(
+      (o) => o.status === "Em análise",
+    );
+    const hasProgress = occurrencesForStreet.some(
+      (o) => o.status === "Em atendimento",
+    );
+    const tone: "blue" | "orange" | "green" = hasInAnalysis
+      ? "blue"
+      : hasProgress
+        ? "orange"
+        : "green";
+
+    streetList.push({
+      name: streetName,
+      neighborhood: "Acopiara · CE",
+      position,
+      total: occurrencesForStreet.length,
+      tone,
+      occurrences: occurrencesForStreet,
+    });
+  });
+
+  return streetList;
 }
 
 export function MapaDeOcorrencias({
   notify,
   role = "CIDADAO",
+  onNewReport,
+  refreshKey = 0,
 }: {
   notify: (message: string) => void;
   role?: Role;
+  onNewReport?: (address: string) => void;
+  refreshKey?: number;
 }) {
-  const [streets, setStreets] = useState(initialStreets);
+  const [streets, setStreets] = useState<Street[]>(() => buildStreetList([]));
   const [selectedStreetName, setSelectedStreetName] = useState<string | null>(
     null,
   );
   const [search, setSearch] = useState("");
-  const [formOpen, setFormOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newDescription, setNewDescription] = useState("");
+  const [newCommentText, setNewCommentText] = useState<Record<number, string>>(
+    {},
+  );
+  const [activeCommentBox, setActiveCommentBox] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
     listOccurrences(role)
       .then((occurrences) => {
-        if (active) setStreets(toStreetData(occurrences));
+        if (active && Array.isArray(occurrences)) {
+          setStreets(buildStreetList(occurrences));
+        }
       })
-      .catch(() => notify("Não foi possível carregar as ocorrências da API."));
+      .catch(() => {
+        // Fallback gracefully to demo streets
+        if (active) setStreets(buildStreetList([]));
+      });
     return () => {
       active = false;
     };
-  }, [notify, role]);
+  }, [refreshKey, role]);
+
   const selectedStreet =
     streets.find((street) => street.name === selectedStreetName) || null;
+
   const visibleStreets = streets.filter((street) =>
     `${street.name} ${street.neighborhood}`
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
 
-  const submitOccurrence = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!selectedStreet || !newTitle.trim() || !newDescription.trim()) return;
-    const occurrence: StreetOccurrence = {
-      id: Date.now(),
-      author: "Ana Souza",
-      initials: "AS",
-      time: "agora",
-      title: newTitle.trim(),
-      description: newDescription.trim(),
-      supports: 0,
-      status: "Em análise",
-    };
-    setStreets((current) =>
-      current.map((street) =>
-        street.name === selectedStreet.name
-          ? {
-              ...street,
-              total: street.total + 1,
-              occurrences: [occurrence, ...street.occurrences],
-            }
-          : street,
-      ),
+  const handleToggleSupport = async (occurrenceId: number) => {
+    // Optimistically update local state
+    setStreets((prevStreets) =>
+      prevStreets.map((street) => ({
+        ...street,
+        occurrences: street.occurrences.map((occ) => {
+          if (occ.id !== occurrenceId) return occ;
+          const willSupport = !occ.isSupported;
+          return {
+            ...occ,
+            isSupported: willSupport,
+            supports: willSupport
+              ? occ.supports + 1
+              : Math.max(0, occ.supports - 1),
+          };
+        }),
+      })),
     );
-    setNewTitle("");
-    setNewDescription("");
-    setFormOpen(false);
-    notify(`Ocorrência criada em ${selectedStreet.name}`);
+
+    // Get current status to show appropriate notification
+    let isNowSupported = false;
+    streets.forEach((s) => {
+      const found = s.occurrences.find((o) => o.id === occurrenceId);
+      if (found) isNowSupported = !found.isSupported;
+    });
+
+    if (isNowSupported) {
+      notify("Você apoiou esta ocorrência com sucesso! ❤️");
+    } else {
+      notify("Apoio removido.");
+    }
+
+    // Call API backend in background if real occurrence ID
+    try {
+      if (isNowSupported) {
+        await supportOccurrence(occurrenceId);
+      } else {
+        await unsupportOccurrence(occurrenceId);
+      }
+    } catch {
+      // Gracefully ignore API error if using mock test data
+    }
   };
 
-  if (selectedStreet)
+  const handleAddComment = (occurrenceId: number) => {
+    const text = (newCommentText[occurrenceId] || "").trim();
+    if (!text) return;
+
+    const newComment: Comment = {
+      id: Date.now(),
+      author: "Você (Cidadão)",
+      text,
+      time: "Agora mesmo",
+    };
+
+    setStreets((prevStreets) =>
+      prevStreets.map((street) => ({
+        ...street,
+        occurrences: street.occurrences.map((occ) => {
+          if (occ.id !== occurrenceId) return occ;
+          return {
+            ...occ,
+            comments: [...occ.comments, newComment],
+          };
+        }),
+      })),
+    );
+
+    setNewCommentText((prev) => ({ ...prev, [occurrenceId]: "" }));
+    notify("Comentário adicionado com sucesso!");
+  };
+
+  if (selectedStreet) {
     return (
       <main className="dashboard-page container map-screen street-detail-screen">
         <button
           className="back-to-map"
           onClick={() => setSelectedStreetName(null)}
         >
-          <ArrowLeft size={17} /> Voltar para o mapa
+          <ArrowLeft size={18} /> Voltar para o mapa de ruas
         </button>
+
         <div className="street-feed-header">
           <div>
-            <div className="section-kicker">OCORRÊNCIAS DA RUA</div>
+            <div className="section-kicker">
+              <Sparkles size={14} className="inline-icon" /> OCORRÊNCIAS DA RUA
+            </div>
             <h1>{selectedStreet.name}</h1>
             <p>
-              <MapPin size={15} /> {selectedStreet.neighborhood} ·{" "}
-              {selectedStreet.total} relatos da comunidade
+              <MapPin size={16} /> {selectedStreet.neighborhood} ·{" "}
+              <strong>{selectedStreet.total}</strong> relatos registrados pelos
+              moradores
             </p>
           </div>
-          {role === "CIDADAO" && (
-            <button className="primary-btn" onClick={() => setFormOpen(true)}>
-              <Plus size={18} /> Criar ocorrência
+          {role === "CIDADAO" && onNewReport && (
+            <button
+              className="primary-btn pulse-on-hover"
+              onClick={() => onNewReport(selectedStreet.name)}
+            >
+              + Registrar ocorrência nesta rua
             </button>
           )}
         </div>
-        {formOpen && (
-          <form className="new-occurrence-form" onSubmit={submitOccurrence}>
-            <div className="form-heading">
-              <div>
-                <strong>Nova ocorrência</strong>
-                <span>
-                  Este relato será publicado em {selectedStreet.name}.
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFormOpen(false)}
-                aria-label="Fechar formulário"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <label htmlFor="street-occurrence-title">Título do problema</label>
-            <input
-              id="street-occurrence-title"
-              value={newTitle}
-              onChange={(event) => setNewTitle(event.target.value)}
-              placeholder="Ex.: Buraco perto da faixa de pedestres"
-              required
-            />
-            <label htmlFor="street-occurrence-description">
-              Conte o que aconteceu
-            </label>
-            <textarea
-              id="street-occurrence-description"
-              value={newDescription}
-              onChange={(event) => setNewDescription(event.target.value)}
-              placeholder="Descreva o problema para os outros moradores..."
-              rows={4}
-              required
-            />
-            <button className="primary-btn" type="submit">
-              <Send size={17} /> Publicar ocorrência
-            </button>
-          </form>
-        )}
+
         <section className="street-feed">
           <div className="feed-intro">
-            <Users size={19} />
-            <span>O que a comunidade está falando</span>
+            <Users size={20} />
+            <span>Relatos e comentários da comunidade (Dados de Teste / Reais)</span>
           </div>
+
           {selectedStreet.occurrences.map((occurrence) => (
-            <article className="occurrence-post" key={occurrence.id}>
+            <article className="occurrence-post card-elevated" key={occurrence.id}>
               <div className="post-author">
                 <span className="post-avatar">{occurrence.initials}</span>
                 <div>
                   <strong>{occurrence.author}</strong>
-                  <small>{occurrence.time} · morador da região</small>
+                  <small>{occurrence.time} · Acopiara, CE</small>
                 </div>
                 <span
-                  className={`status status-${occurrence.status === "Resolvida" ? "green" : occurrence.status === "Em atendimento" ? "orange" : "blue"}`}
+                  className={`status status-${
+                    occurrence.status === "Resolvida"
+                      ? "green"
+                      : occurrence.status === "Em atendimento"
+                        ? "orange"
+                        : "blue"
+                  }`}
                 >
                   <span className="status-dot" />
+                  {occurrence.status === "Resolvida" && <CheckCircle2 size={12} />}
+                  {occurrence.status === "Em atendimento" && <Clock size={12} />}
+                  {occurrence.status === "Em análise" && <AlertCircle size={12} />}
                   {occurrence.status}
                 </span>
               </div>
+
+              {occurrence.category && (
+                <span className="category-badge">{occurrence.category}</span>
+              )}
+
               <h2>{occurrence.title}</h2>
-              <p>{occurrence.description}</p>
+              <p className="occurrence-desc">{occurrence.description}</p>
+
               <div className="post-actions">
-                <button onClick={() => notify("Você apoiou esta ocorrência")}>
-                  <Heart size={17} /> Apoiar{" "}
-                  <strong>{occurrence.supports}</strong>
-                </button>
                 <button
-                  onClick={() => notify("Comentários disponíveis em breve")}
+                  className={`support-btn ${occurrence.isSupported ? "supported" : ""}`}
+                  onClick={() => handleToggleSupport(occurrence.id)}
+                  title="Apoiar este relato da comunidade"
                 >
-                  <MessageCircle size={17} /> Comentar
+                  <Heart
+                    size={18}
+                    fill={occurrence.isSupported ? "#e63946" : "none"}
+                    color={occurrence.isSupported ? "#e63946" : "currentColor"}
+                  />
+                  <span>
+                    {occurrence.isSupported ? "Apoiado" : "Apoiar"}
+                  </span>
+                  <strong className="support-count">{occurrence.supports}</strong>
                 </button>
+
+                <button
+                  className="comment-btn"
+                  onClick={() =>
+                    setActiveCommentBox((curr) =>
+                      curr === occurrence.id ? null : occurrence.id,
+                    )
+                  }
+                >
+                  <MessageCircle size={18} />
+                  <span>Comentários ({occurrence.comments.length})</span>
+                </button>
+              </div>
+
+              {/* Comments list and comment input box */}
+              <div className="comments-section">
+                {occurrence.comments.length > 0 && (
+                  <div className="comments-list">
+                    {occurrence.comments.map((comment) => (
+                      <div className="comment-item" key={comment.id}>
+                        <div className="comment-header">
+                          <strong>{comment.author}</strong>
+                          <small>{comment.time}</small>
+                        </div>
+                        <p>{comment.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {activeCommentBox === occurrence.id && (
+                  <div className="add-comment-box">
+                    <input
+                      type="text"
+                      placeholder="Escreva um comentário ou apoio..."
+                      value={newCommentText[occurrence.id] || ""}
+                      onChange={(e) =>
+                        setNewCommentText({
+                          ...newCommentText,
+                          [occurrence.id]: e.target.value,
+                        })
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleAddComment(occurrence.id);
+                      }}
+                    />
+                    <button
+                      className="send-comment-btn"
+                      onClick={() => handleAddComment(occurrence.id)}
+                    >
+                      <Send size={15} /> Enviar
+                    </button>
+                  </div>
+                )}
               </div>
             </article>
           ))}
+
+          {selectedStreet.occurrences.length === 0 && (
+            <div className="empty-streets-card">
+              <AlertCircle size={32} color="#1681d4" />
+              <h3>Ainda não há ocorrências cadastradas nesta rua</h3>
+              <p>Seja o primeiro morador a registrar um relato para a comunidade de Acopiara.</p>
+              {role === "CIDADAO" && onNewReport && (
+                <button
+                  className="primary-btn"
+                  onClick={() => onNewReport(selectedStreet.name)}
+                >
+                  Registrar ocorrência agora
+                </button>
+              )}
+            </div>
+          )}
         </section>
       </main>
     );
+  }
 
   return (
     <main className="dashboard-page container map-screen">
       <div className="page-heading">
         <div>
-          <div className="section-kicker">VISÃO DA CIDADE</div>
-          <h1>Mapa de ocorrências</h1>
-          <p>Escolha uma rua para ver os relatos da comunidade e participar.</p>
+          <div className="section-kicker">
+            <Map size={14} className="inline-icon" /> MAPA INTERATIVO DAS RUAS
+          </div>
+          <h1>Acopiara · Ceará</h1>
+          <p>
+            Clique nos cards das ruas diretamente no mapa ou na lista lateral
+            para visualizar e apoiar as ocorrências ativas.
+          </p>
         </div>
         <button
           className="outline-btn"
-          onClick={() => notify("Filtros do mapa atualizados")}
+          onClick={() => notify("Visão do mapa atualizada.")}
         >
-          <Map size={17} /> Filtrar mapa
+          <Map size={17} /> Atualizar Mapa
         </button>
       </div>
+
       <div className="map-toolbar">
         <div className="map-stat">
           <span className="map-stat-dot blue-dot" />
           <div>
-            <strong>1.248</strong>
-            <small>ocorrências no Brasil</small>
+            <strong>
+              {streets.reduce((total, street) => total + street.total, 0)}
+            </strong>
+            <small>relatos cadastrados</small>
           </div>
         </div>
         <div className="map-stat">
           <span className="map-stat-dot green-dot" />
           <div>
-            <strong>823</strong>
-            <small>resolvidas</small>
+            <strong>
+              {streets.reduce(
+                (total, street) =>
+                  total +
+                  street.occurrences.filter(
+                    (occ) => occ.status === "Resolvida",
+                  ).length,
+                0,
+              )}
+            </strong>
+            <small>resolvidos</small>
           </div>
         </div>
         <div className="map-search">
@@ -404,60 +663,84 @@ export function MapaDeOcorrencias({
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar rua ou bairro"
-            aria-label="Buscar rua ou bairro"
+            placeholder="Buscar rua cadastrada..."
+            aria-label="Buscar rua cadastrada"
           />
         </div>
         <button
           className="location-btn"
-          onClick={() => notify("Localização centralizada em São Paulo")}
+          onClick={() => notify("Localização focada em Acopiara · CE")}
         >
           <LocateFixed size={18} />
           <span>Minha localização</span>
         </button>
       </div>
+
       <section className="full-map-card">
-        <div className="brazil-map-art">
-          <div className="map-watermark">SÃO PAULO</div>
-          {visibleStreets.map((street) => (
-            <button
-              key={street.name}
-              className={`map-region ${street.position} ${street.tone}`}
-              onClick={() => setSelectedStreetName(street.name)}
-            >
-              <span>{street.name}</span>
-              <small>{street.total} relatos</small>
-            </button>
-          ))}
+        {/* INTERACTIVE MAP CONTAINER WITH CARDS INSIDE THE MAP */}
+        <div className="brazil-map-art interactive-map-canvas">
+          <div className="map-watermark">ACOPIARA · CE</div>
+          
+          <div className="map-street-cards-container">
+            {visibleStreets.map((street) => (
+              <button
+                key={street.name}
+                className={`map-street-pin-card ${street.tone}`}
+                style={{
+                  top: street.position.top,
+                  left: street.position.left,
+                }}
+                onClick={() => setSelectedStreetName(street.name)}
+                title={`Clique para ver os relatos de ${street.name}`}
+              >
+                <div className="pin-header">
+                  <span className={`status-beacon ${street.tone}`} />
+                  <strong className="pin-street-name">{street.name}</strong>
+                </div>
+                <div className="pin-footer">
+                  <MapPin size={13} />
+                  <span>{street.total} relatos</span>
+                  <span className="pin-action-arrow">→</span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* SIDEBAR STREET CARD LIST */}
         <div className="street-card-list">
           <div className="street-list-heading">
             <div>
-              <strong>Ruas com ocorrências</strong>
-              <span>Clique em um card para abrir o feed da rua.</span>
+              <strong>Ruas Cadastradas ({visibleStreets.length})</strong>
+              <span>Clique no card da rua para abrir as ocorrências</span>
             </div>
-            <MapPin size={19} />
+            <MapPin size={19} color="#1681d4" />
           </div>
-          {visibleStreets.map((street) => (
-            <button
-              className="street-card"
-              key={street.name}
-              onClick={() => setSelectedStreetName(street.name)}
-            >
-              <span className={`street-status-dot ${street.tone}`} />
-              <span>
-                <strong>{street.name}</strong>
-                <small>{street.neighborhood}</small>
-              </span>
-              <span className="street-card-total">
-                {street.total}
-                <small>relatos</small>
-              </span>
-            </button>
-          ))}
-          {visibleStreets.length === 0 && (
-            <p className="empty-streets">Nenhuma rua encontrada.</p>
-          )}
+
+          <div className="street-cards-scroll">
+            {visibleStreets.map((street) => (
+              <button
+                className="street-card"
+                key={street.name}
+                onClick={() => setSelectedStreetName(street.name)}
+              >
+                <span className={`street-status-dot ${street.tone}`} />
+                <span className="street-card-info">
+                  <strong>{street.name}</strong>
+                  <small>{street.neighborhood}</small>
+                </span>
+                <span className="street-card-total">
+                  <strong>{street.total}</strong>
+                  <small>relatos</small>
+                </span>
+              </button>
+            ))}
+            {visibleStreets.length === 0 && (
+              <p className="empty-streets">
+                Nenhuma rua encontrada com esse termo de busca.
+              </p>
+            )}
+          </div>
         </div>
       </section>
     </main>

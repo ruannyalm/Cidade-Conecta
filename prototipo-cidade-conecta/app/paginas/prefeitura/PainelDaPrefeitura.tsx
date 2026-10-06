@@ -8,23 +8,144 @@ import {
   Clock3,
   LoaderCircle,
   MapPin,
+  Send,
   ShieldCheck,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   analyzeOccurrenceUrgency,
   listOccurrences,
+  updateOccurrenceStatus,
   type Occurrence,
+  type StatusOcorrencia,
   type UrgencyAnalysis,
 } from "../../lib/api";
+import { acopiaraLocations } from "../../components/cidade-conecta/shared";
+
+const statusOptions: { value: StatusOcorrencia; label: string }[] = [
+  { value: "EM_ANALISE", label: "Em análise" },
+  { value: "AGENDADO", label: "Agendado" },
+  { value: "EM_PROCESSO", label: "Em atendimento" },
+  { value: "RESOLVIDO", label: "Resolvido" },
+];
+
+function isOccurrenceStatus(value: FormDataEntryValue | null): value is StatusOcorrencia {
+  return statusOptions.some((option) => option.value === value);
+}
+
+function AtendimentoOcorrencia({
+  occurrence,
+  onUpdated,
+}: {
+  occurrence: Occurrence;
+  onUpdated: (id: number, status: StatusOcorrencia) => void;
+}) {
+  const [status, setStatus] = useState(occurrence.status);
+  const [resposta, setResposta] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => setStatus(occurrence.status), [occurrence.status]);
+
+  const submitUpdate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+    setSaving(true);
+    try {
+      await updateOccurrenceStatus(occurrence.id, status, resposta.trim());
+      onUpdated(occurrence.id, status);
+      setResposta("");
+      setNotice("Atualização enviada ao cidadão.");
+    } catch {
+      setError("Não foi possível atualizar este relato. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <article className="prefeitura-occurrence-card">
+      <div className="prefeitura-occurrence-heading">
+        <div>
+          <strong>{occurrence.titulo}</strong>
+          <span>
+            {occurrence.endereco || "Rua não informada"} ·{" "}
+            {occurrence.bairro || "Acopiara · CE"}
+          </span>
+        </div>
+        <span className="prefeitura-occurrence-status">
+          {statusOptions.find((option) => option.value === occurrence.status)?.label}
+        </span>
+      </div>
+      <p>{occurrence.descricao}</p>
+      <small>
+        Relato de {occurrence.anonima ? "cidadão anônimo" : occurrence.autor || "cidadão"} ·{" "}
+        {new Date(occurrence.criadaEm).toLocaleDateString("pt-BR")}
+      </small>
+      {occurrence.respostas?.map((item) => (
+        <blockquote className="prefeitura-occurrence-reply" key={item.id}>
+          <strong>Resposta de {item.autor}</strong>
+          <span>{item.mensagem}</span>
+        </blockquote>
+      ))}
+      <form className="prefeitura-occurrence-form" onSubmit={submitUpdate}>
+        <label>
+          Atualizar andamento
+          <select
+            value={status}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (isOccurrenceStatus(value)) setStatus(value);
+            }}
+          >
+            {statusOptions.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Resposta ao cidadão
+          <textarea
+            value={resposta}
+            onChange={(event) => setResposta(event.target.value)}
+            placeholder="Escreva uma atualização para quem registrou..."
+            rows={2}
+          />
+        </label>
+        <button className="primary-btn" type="submit" disabled={saving}>
+          {saving ? <LoaderCircle className="spin" size={17} /> : <Send size={17} />}
+          {saving ? "Enviando..." : "Enviar atualização"}
+        </button>
+        {error && <p className="prefeitura-occurrence-error" role="alert">{error}</p>}
+        {notice && <p className="prefeitura-occurrence-notice" role="status">{notice}</p>}
+      </form>
+    </article>
+  );
+}
 
 export function PainelDaPrefeitura() {
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     listOccurrences("PREFEITURA")
-      .then(setOccurrences)
+      .then((items) =>
+        setOccurrences(
+          items.filter((item) =>
+            acopiaraLocations.some(
+              (location) =>
+                location.toLocaleLowerCase("pt-BR") ===
+                item.endereco?.trim().toLocaleLowerCase("pt-BR"),
+            ),
+          ),
+        ),
+      )
+      .catch(() => setError("Não foi possível carregar os relatos da Prefeitura."))
       .finally(() => setLoading(false));
   }, []);
 
@@ -34,6 +155,11 @@ export function PainelDaPrefeitura() {
   const resolved = occurrences.filter(
     (item) => item.status === "RESOLVIDO",
   ).length;
+  const updateOccurrence = (id: number, status: StatusOcorrencia) => {
+    setOccurrences((current) =>
+      current.map((item) => (item.id === id ? { ...item, status } : item)),
+    );
+  };
 
   return (
     <main className="dashboard-page container">
@@ -92,6 +218,26 @@ export function PainelDaPrefeitura() {
             </p>
           </div>
         </div>
+      </section>
+      <section className="prefeitura-occurrences">
+        <div className="prefeitura-occurrences-heading">
+          <div>
+            <h2>Relatos para atendimento</h2>
+            <p>Atualize o andamento e responda aos cidadãos.</p>
+          </div>
+        </div>
+        {loading && <p>Carregando relatos...</p>}
+        {error && <p className="prefeitura-occurrence-error" role="alert">{error}</p>}
+        {!loading && !error && occurrences.length === 0 && (
+          <p>Ainda não há relatos cadastrados em Acopiara.</p>
+        )}
+        {occurrences.map((occurrence) => (
+          <AtendimentoOcorrencia
+            key={occurrence.id}
+            occurrence={occurrence}
+            onUpdated={updateOccurrence}
+          />
+        ))}
       </section>
     </main>
   );

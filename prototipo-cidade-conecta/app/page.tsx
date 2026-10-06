@@ -10,7 +10,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   clearSession,
   getSession,
@@ -53,9 +53,9 @@ export default function Page() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportTab, setReportTab] = useState<ReportTab>("voz");
+  const [reportAddress, setReportAddress] = useState("");
+  const [occurrencesRevision, setOccurrencesRevision] = useState(0);
   const [toast, setToast] = useState("");
-  const [selectedRegion, setSelectedRegion] = useState("Sudeste");
-  const [selectedCity, setSelectedCity] = useState("São Paulo");
   const [prefeituraPage, setPrefeituraPage] = useState<
     "painel" | "mapa" | "ia"
   >("painel");
@@ -69,10 +69,10 @@ export default function Page() {
     setSessionReady(true);
   }, []);
 
-  const notify = (message: string) => {
+  const notify = useCallback((message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 3000);
-  };
+  }, []);
 
   const navigate = (page: PageName | "prefeitura") => {
     setScreen(page);
@@ -101,8 +101,9 @@ export default function Page() {
     }
   };
 
-  const openReport = (tab: ReportTab = "voz") => {
+  const openReport = (tab: ReportTab = "voz", address = "") => {
     setReportTab(tab);
+    setReportAddress(address);
     setReportOpen(true);
   };
 
@@ -152,7 +153,11 @@ export default function Page() {
         </header>
         {prefeituraPage === "painel" && <PainelDaPrefeitura />}
         {prefeituraPage === "mapa" && (
-          <MapaDeOcorrencias notify={notify} role="PREFEITURA" />
+          <MapaDeOcorrencias
+            notify={notify}
+            role="PREFEITURA"
+            refreshKey={occurrencesRevision}
+          />
         )}
         {prefeituraPage === "ia" && <PrefeituraIa />}
       </div>
@@ -235,16 +240,16 @@ export default function Page() {
         <MinhasOcorrencias onNewReport={openReport} notify={notify} />
       )}
       {screen === "cidades" && (
-        <CidadesERegioes
-          selectedRegion={selectedRegion}
-          selectedCity={selectedCity}
-          setSelectedRegion={setSelectedRegion}
-          setSelectedCity={setSelectedCity}
-        />
+        <CidadesERegioes />
       )}
       {screen === "ia" && <IaEVoz onNewReport={openReport} notify={notify} />}
       {screen === "mapa" && (
-        <MapaDeOcorrencias notify={notify} role="CIDADAO" />
+        <MapaDeOcorrencias
+          notify={notify}
+          role="CIDADAO"
+          onNewReport={(address) => openReport("texto", address)}
+          refreshKey={occurrencesRevision}
+        />
       )}
       {screen === "usuario" && (
         <MinhaConta
@@ -262,9 +267,11 @@ export default function Page() {
       </footer>
       {reportOpen && (
         <ModalDeOcorrencia
+          initialAddress={reportAddress}
           tab={reportTab}
           setTab={setReportTab}
           onClose={() => setReportOpen(false)}
+          onCreated={() => setOccurrencesRevision((revision) => revision + 1)}
           notify={notify}
         />
       )}

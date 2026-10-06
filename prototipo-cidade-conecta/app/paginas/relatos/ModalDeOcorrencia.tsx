@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createOccurrence } from "../../lib/api";
+import { acopiaraLocations } from "../../components/cidade-conecta/shared";
 
 export type ReportTab = "voz" | "texto" | "midia" | "identidade";
 
@@ -42,31 +43,25 @@ const categories = [
   ["OUTRO", "Outro problema"],
 ];
 
-const addressOptions = [
-  "Av. Cazuzinha Marques",
-  "R. Manuel José",
-  "R. Emídio Alves de Almeida",
-  "R. Maria Nilce Rodrigues Marquês",
-  "R. Dr. Tribúrcio Soares",
-  "R. Paulino Felix",
-  "Ponto de referência: Igreja da Matriz",
-];
-
 export function ModalDeOcorrencia({
+  initialAddress = "",
   tab,
   setTab,
   onClose,
+  onCreated,
   notify,
 }: {
+  initialAddress?: string;
   tab: ReportTab;
   setTab: (value: ReportTab) => void;
   onClose: () => void;
+  onCreated: () => void;
   notify: (message: string) => void;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("OUTRO");
-  const [address, setAddress] = useState("");
+  const [address, setAddress] = useState(initialAddress);
   const [neighborhood, setNeighborhood] = useState("");
   const [anonymous, setAnonymous] = useState(false);
   const [media, setMedia] = useState<File[]>([]);
@@ -184,6 +179,7 @@ export function ModalDeOcorrencia({
         },
         media,
       );
+      onCreated();
       notify("Ocorrência enviada com sucesso.");
       onClose();
     } catch {
@@ -422,9 +418,10 @@ export function ModalDeOcorrencia({
                 id="report-address"
                 value={address}
                 onChange={(event) => setAddress(event.target.value)}
+                required
               >
-                <option value="">Selecione uma rua ou referência (opcional)</option>
-                {addressOptions.map((option) => (
+                <option value="">Selecione uma rua ou referência</option>
+                {acopiaraLocations.map((option) => (
                   <option value={option} key={option}>
                     {option}
                   </option>
