@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8090";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8090";
 console.log("API_URL:", API_URL);
 
 export type Role = "CIDADAO" | "PREFEITURA";
@@ -55,6 +55,12 @@ export type Occurrence = {
   acompanhada: boolean;
   enviadaPorAudio: boolean;
   criadaEm: string;
+  midias?: {
+    id: number;
+    tipoConteudo: string;
+    tamanho: number;
+    url: string;
+  }[];
   respostas?: {
     id: number;
     autor: string;

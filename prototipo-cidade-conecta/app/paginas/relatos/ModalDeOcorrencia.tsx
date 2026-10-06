@@ -316,25 +316,52 @@ export function ModalDeOcorrencia({
             </button>
             {media.length > 0 && (
               <ul className="selected-media">
-                {media.map((file, index) => (
-                  <li key={`${file.name}-${index}`}>
-                    <span>
-                      {file.name}
-                      <small>{(file.size / (1024 * 1024)).toFixed(1)} MB</small>
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`Remover ${file.name}`}
-                      onClick={() =>
-                        setMedia((current) =>
-                          current.filter((_, itemIndex) => itemIndex !== index),
-                        )
-                      }
+                {media.map((file, index) => {
+                  const isImage = file.type.startsWith("image/");
+                  const previewUrl = isImage ? URL.createObjectURL(file) : null;
+                  return (
+                    <li
+                      key={`${file.name}-${index}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "8px",
+                      }}
                     >
-                      <Trash2 size={16} />
-                    </button>
-                  </li>
-                ))}
+                      {previewUrl && (
+                        <img
+                          src={previewUrl}
+                          alt={file.name}
+                          style={{
+                            width: "44px",
+                            height: "44px",
+                            borderRadius: "6px",
+                            objectFit: "cover",
+                            border: "1px solid rgba(255,255,255,0.2)",
+                          }}
+                        />
+                      )}
+                      <span style={{ flex: 1 }}>
+                        {file.name}
+                        <small style={{ display: "block", opacity: 0.7 }}>
+                          {(file.size / (1024 * 1024)).toFixed(1)} MB
+                        </small>
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Remover ${file.name}`}
+                        onClick={() =>
+                          setMedia((current) =>
+                            current.filter((_, itemIndex) => itemIndex !== index),
+                          )
+                        }
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

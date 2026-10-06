@@ -47,6 +47,11 @@ public SecurityFilterChain securityFilterChain(
                     ).permitAll()
 
                     .requestMatchers(
+                            org.springframework.http.HttpMethod.GET,
+                            "/api/ocorrencias/*/midias/*"
+                    ).permitAll()
+
+                    .requestMatchers(
                             org.springframework.http.HttpMethod.OPTIONS,
                             "/**"
                     ).permitAll()

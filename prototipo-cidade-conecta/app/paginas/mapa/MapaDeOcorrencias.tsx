@@ -23,6 +23,7 @@ import {
   addOccurrenceComment,
   analyzeOccurrenceUrgency,
   getSession,
+  API_URL,
   type Role,
   type Occurrence,
   type UrgencyAnalysis,
@@ -47,6 +48,7 @@ export type StreetOccurrence = {
   isSupported?: boolean;
   status: "Em análise" | "Em atendimento" | "Resolvida";
   category?: string;
+  photos?: string[];
   comments: Comment[];
 };
 
@@ -293,6 +295,19 @@ function buildStreetList(dbOccurrences: Occurrence[]): Street[] {
                   ? "Em atendimento"
                   : "Em análise",
             category: occ.categoria || "Geral",
+            photos: (occ.midias || [])
+              .map((m) => {
+                if (!m.url) return "";
+                if (
+                  m.url.startsWith("http") ||
+                  m.url.startsWith("blob:") ||
+                  m.url.startsWith("data:")
+                ) {
+                  return m.url;
+                }
+                return `${API_URL}${m.url}`;
+              })
+              .filter(Boolean),
             comments: (occ.respostas || []).map((resp) => ({
               id: resp.id,
               author: resp.autor,
@@ -582,6 +597,52 @@ export function MapaDeOcorrencias({
 
               <h2>{occurrence.title}</h2>
               <p className="occurrence-desc">{occurrence.description}</p>
+
+              {/* Photos attached to this occurrence */}
+              {occurrence.photos && occurrence.photos.length > 0 && (
+                <div
+                  className="occurrence-photos-container"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      occurrence.photos.length === 1
+                        ? "1fr"
+                        : "repeat(auto-fill, minmax(180px, 1fr))",
+                    gap: "10px",
+                    margin: "12px 0 16px 0",
+                  }}
+                >
+                  {occurrence.photos.map((photoUrl, pIdx) => (
+                    <div
+                      key={pIdx}
+                      style={{
+                        borderRadius: "12px",
+                        overflow: "hidden",
+                        border: "1px solid rgba(255, 255, 255, 0.15)",
+                        maxHeight: "260px",
+                        backgroundColor: "rgba(0, 0, 0, 0.2)",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => window.open(photoUrl, "_blank")}
+                    >
+                      <img
+                        src={photoUrl}
+                        alt={`Foto da ocorrência ${occurrence.title}`}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          maxHeight: "260px",
+                          objectFit: "cover",
+                          display: "block",
+                          transition: "transform 0.2s ease",
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.transform = "scale(1.03)")}
+                        onMouseOut={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="post-actions">
                 <button
