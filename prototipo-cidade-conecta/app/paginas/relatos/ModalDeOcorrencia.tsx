@@ -42,6 +42,16 @@ const categories = [
   ["OUTRO", "Outro problema"],
 ];
 
+const addressOptions = [
+  "Av. Cazuzinha Marques",
+  "R. Manuel José",
+  "R. Emídio Alves de Almeida",
+  "R. Maria Nilce Rodrigues Marquês",
+  "R. Dr. Tribúrcio Soares",
+  "R. Paulino Felix",
+  "Ponto de referência: Igreja da Matriz",
+];
+
 export function ModalDeOcorrencia({
   tab,
   setTab,
@@ -407,15 +417,19 @@ export function ModalDeOcorrencia({
               />
             </div>
             <div className="report-field">
-              <label htmlFor="report-address">
-                Endereço <span>opcional</span>
-              </label>
-              <input
+              <label htmlFor="report-address">Rua ou ponto de referência</label>
+              <select
                 id="report-address"
                 value={address}
                 onChange={(event) => setAddress(event.target.value)}
-                placeholder="Rua, número ou referência"
-              />
+              >
+                <option value="">Selecione uma rua ou referência (opcional)</option>
+                {addressOptions.map((option) => (
+                  <option value={option} key={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <div className="report-field">

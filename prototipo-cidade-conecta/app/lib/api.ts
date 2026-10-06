@@ -1,4 +1,5 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8090";
+console.log("API_URL:", API_URL);
 
 export type Role = "CIDADAO" | "PREFEITURA";
 export type StatusOcorrencia =

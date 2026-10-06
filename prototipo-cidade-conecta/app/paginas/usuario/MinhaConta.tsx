@@ -3,9 +3,11 @@
 import { BarChart3, Bell, LogOut, ShieldCheck, Volume2 } from "lucide-react";
 
 export function MinhaConta({
+  nome,
   notify,
   onLogout,
 }: {
+  nome: string;
   notify: (message: string) => void;
   onLogout: () => void;
 }) {
@@ -19,9 +21,9 @@ export function MinhaConta({
         </div>
       </div>
       <section className="profile-hero">
-        <div className="profile-avatar">AS</div>
+        <div className="profile-avatar">{nome.slice(0, 2).toUpperCase()}</div>
         <div className="profile-copy">
-          <span className="profile-label">Olá, Ana Souza</span>
+          <span className="profile-label">Olá, {nome}</span>
           <h2>Sua participação importa</h2>
           <p>Você já ajudou a melhorar 7 pontos da sua cidade.</p>
           <div className="profile-actions">

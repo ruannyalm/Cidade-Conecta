@@ -247,7 +247,11 @@ export default function Page() {
         <MapaDeOcorrencias notify={notify} role="CIDADAO" />
       )}
       {screen === "usuario" && (
-        <MinhaConta notify={notify} onLogout={handleLogout} />
+        <MinhaConta
+          nome={session.nome}
+          notify={notify}
+          onLogout={handleLogout}
+        />
       )}
       <footer>
         <div className="container footer-inner">
